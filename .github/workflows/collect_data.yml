@@ -2,6 +2,7 @@ name: Daily Data Collection
 
 on:
   schedule:
+    # Runs every day at 8:00 UTC (1:00 AM PDT)
     - cron: '0 8 * * *'
 
   workflow_dispatch:
