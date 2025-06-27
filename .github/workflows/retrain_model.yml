@@ -2,8 +2,8 @@ name: Weekly Model Retraining
 
 on:
   schedule:
-    # Runs every Thursday at 4:00 UTC (9:00 PM PDT)
-    - cron: '0 4 * * 5'
+    # Runs every Friday at 4:00 UTC (9:00 PM PDT)
+    - cron: '0 4 * * 6'
   workflow_dispatch:
 
 jobs:
