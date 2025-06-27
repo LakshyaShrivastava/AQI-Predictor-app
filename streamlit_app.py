@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 import pandas as pd
 from collections import deque
 from predict_helpers import get_historical_pm25, pm25_to_aqi, create_features_for_prediction
-import os
 
 st.set_page_config(
     page_title="AQI Forecaster",
