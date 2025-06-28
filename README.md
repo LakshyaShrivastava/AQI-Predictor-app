@@ -72,11 +72,11 @@ Your terminal prompt should now be prefixed with (venv).
 
 **3. Install Required Packages**
 
-	This project uses a `requirements.txt` file to manage all its dependencies. Run the following command to install them all at once:
+This project uses a `requirements.txt` file to manage all its dependencies. Run the following command to install them all at once:
 
-	```Bash
-	pip install -r requirements.txt
-	```
+```Bash
+pip install -r requirements.txt
+```
 
 **4. Set Up Your Local API Key**
 
