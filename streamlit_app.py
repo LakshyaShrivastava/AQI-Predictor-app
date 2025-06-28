@@ -240,6 +240,20 @@ def run_app():
                 - "What was the average AQI for the whole last week?" **(Rolling Mean)**
                 - "Has the air quality been stable or chaotic recently?" **(Rolling Standard Deviation)**
         """)
+
+        st.subheader("AQI Calculation Formula")
+        st.write("To convert a raw pollutant concentration (like PM2.5) into the final 0-500 index, the US EPA uses a linear interpolation formula. This ensures that a concentration at the low end of a category gets a correspondingly low AQI score, and a concentration at the high end gets a high score.")
+        st.latex(r'''
+            I = \frac{I_{high} - I_{low}}{C_{high} - C_{low}}(C_p - C_{low}) + I_{low}
+        ''')
+
+        st.markdown("""
+        Where:
+        - **$I$** = The final, calculated Air Quality Index.
+        - **$C_p$** = The measured pollutant concentration (in our case, PM2.5 in μg/m³).
+        - **$C_{low}$** and **$C_{high}$** = The concentration breakpoints for the category that $C_p$ falls into (e.g., 12.1 and 35.4 for "Moderate").
+        - **$I_{low}$** and **$I_{high}$** = The AQI value breakpoints corresponding to $C_{low}$ and $C_{high}$ (e.g., 51 and 100 for "Moderate").
+        """)
         
         st.subheader("Training Data")
         st.write("The models were trained on the 'California Air Quality 2020' dataset from Kaggle, specifically for Santa Clara County. This dataset is notable for containing the extreme air quality events of the 2020 wildfire season.")
