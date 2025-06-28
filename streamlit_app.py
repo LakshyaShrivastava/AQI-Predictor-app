@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import os
 
 # --- Import our custom helper functions ---
-from predict_helpers import get_historical_pm25, pm25_to_aqi, create_features_for_prediction
+from scripts.predict_helpers import get_historical_pm25, pm25_to_aqi, create_features_for_prediction
 
 # --- Page Configuration (Set this at the very top) ---
 st.set_page_config(
