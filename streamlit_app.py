@@ -1,14 +1,29 @@
-import streamlit as st
-import pandas as pd
-import joblib
+"""
+Author: Lakshya Shrivastava
+
+This is the main script for the Streamlit web application that serves as the user interface
+for the AQI Prediction project.
+
+It handles loading the models, fetching live data, generating forecasts, and displaying
+the results in an interactive dashboard with multiple tabs.
+"""
+
+# --- Imports ---
+# Standard library imports
+import os
 from collections import deque
 from datetime import datetime, timedelta
-import os
 
-# --- Import our custom helper functions ---
+# Third-party imports
+import joblib
+import pandas as pd
+import streamlit as st
+
+# Custom helper function imports
 from scripts.predict_helpers import get_historical_pm25, pm25_to_aqi, create_features_for_prediction
+from scripts.ui_helpers import get_aqi_display_style
 
-# --- Page Configuration (Set this at the very top) ---
+# --- Page Configuration ---
 st.set_page_config(
     page_title="AQI Forecaster",
     page_icon="💨",
@@ -16,8 +31,21 @@ st.set_page_config(
 )
 
 # --- Caching Functions for Performance ---
+
 @st.cache_resource
 def load_model(model_path):
+    """
+    Loads a machine learning model from a .joblib file.
+
+    Uses Streamlit's cache_resource to ensure the model is loaded from disk
+    only once, which significantly improves performance.
+
+    Args:
+        model_path (str): The file path to the .joblib model file.
+
+    Returns:
+        object: The loaded scikit-learn model object, or None if not found.
+    """
     try:
         model = joblib.load(model_path)
         return model
@@ -26,6 +54,24 @@ def load_model(model_path):
 
 @st.cache_data
 def fetch_recent_data(lat, lon, api_key, n_days):
+    '''
+    Fetches the last N days of historical AQI data from the OpenWeatherMap API.
+
+    Uses Streamlit's cache_data to prevent re-fetching data from the API on every
+    page interaction, making the app much faster. The cache will only clear
+    if the input arguments to this function change.
+
+    Args:
+        lat (float): Latitude of the location.
+        lon (float): Longitude of the location.
+        api_key (str): Your OpenWeatherMap API key.
+        n_days (int): The number of past days of data to fetch.
+
+    Returns:
+        list: A list of the last N days of calculated US EPA AQI values.
+
+    '''
+
     print("Fetching recent data from API...")
     recent_aqi = []
     today = datetime.now()
@@ -39,81 +85,78 @@ def fetch_recent_data(lat, lon, api_key, n_days):
             recent_aqi.append(50) if not recent_aqi else recent_aqi.append(recent_aqi[-1])
     return recent_aqi
 
-# --- Sidebar for Settings ---
-st.sidebar.header("Model Settings")
-model_choice = st.sidebar.selectbox(
-    "Choose a Prediction Model:",
-    ('model_santa_clara_fire_aware.joblib', 'model_2020.joblib')
-)
-
-model_choice = "./models/" + model_choice 
-
-def get_aqi_display_style(aqi):
-    """
-    Returns the background and text color style for a given AQI value based on EPA standards.
-    """
-    aqi = int(aqi) # Ensure AQI is an integer
-    if aqi <= 50:
-        # Good - Green
-        return "background-color: #2b9348; color: white;"
-    elif aqi <= 100:
-        # Moderate - Yellow
-        return "background-color: #f7d44c; color: yellow;"
-    elif aqi <= 150:
-        # Unhealthy for Sensitive Groups - Orange
-        return "background-color: #f89938; color: black;"
-    elif aqi <= 200:
-        # Unhealthy - Red
-        return "background-color: #f26666; color: white;"
-    elif aqi <= 300:
-        # Very Unhealthy - Purple
-        return "background-color: #a37ac4; color: white;"
-    else:
-        # Hazardous - Maroon
-        return "background-color: #931f1f; color: white;"
-
 # --- Main Application Logic ---
-# This part is wrapped in a main function for clarity
 def run_app():
-    # Set up constants and API Key
+    """
+    The main function that orchestrates the Streamlit application.
+    It handles data loading, forecasting, and rendering all UI components.
+    """
+
+    # --- Sidebar for User input ---
+    st.sidebar.header("Model Settings")
+    model_choice_name = st.sidebar.selectbox(
+        "Choose a Prediction Model:",
+        ('model_santa_clara_fire_aware.joblib', 'model_2020.joblib')
+    )
+
+    model_choice_path = os.path.join("models", model_choice_name)
+
+    # --- Setup and Initialization ---
     TARGET_COLUMN = 'DAILY_AQI_VALUE'
     N_LAGS = 7
-    API_KEY = st.secrets.get("OWM_API_KEY")
+    # Securely get the API key from Streamlit Secrets or local environment variables
+    try:
+        API_KEY = st.secrets.get("OWM_API_KEY")
+    except:
+        API_KEY = os.getenv("OWM_API_KEY")
 
     if not API_KEY:
         st.error("OWM_API_KEY not found. Please add it to your Streamlit Secrets.")
         st.stop()
 
-    # Load model and display last trained time
-    model = load_model(model_choice)
+    # --- Model and Data Loading ---
+    model = load_model(model_choice_path)
     if model is None:
-        st.error(f"Model file '{model_choice}' not found.")
+        st.error(f"Model file '{model_choice_name}' not found.")
         st.stop()
     
-    model_path = model_choice
-    last_trained_timestamp = os.path.getmtime(model_path)
+    # Display the last time the selected model file was trained/modified
+    last_trained_timestamp = os.path.getmtime(model_choice_path)
     last_trained_date = datetime.fromtimestamp(last_trained_timestamp)
 
-    # Fetch data and perform forecast
+   # Fetch the last 7 days of data to use as input for the forecast
     last_7_days_aqi = fetch_recent_data(37.4323, -121.8996, API_KEY, N_LAGS)
+
+    # --- Forecasting Logic ---
+    # Use a deque for an efficient sliding window of data
     current_window = deque(last_7_days_aqi, maxlen=N_LAGS)
     future_predictions = []
+    # Loop 7 times to generate a 7-day forecast
     for _ in range(7):
+        # Create features from the current window of 7 days
         input_features = create_features_for_prediction(current_window, TARGET_COLUMN, N_LAGS)
+        # Predict the next day's AQI
         predicted_aqi = model.predict(input_features)[0]
+        # Add the prediction to our forecast list
         future_predictions.append(predicted_aqi)
+        # Update the window: remove the oldest day and add the new prediction
         current_window.append(predicted_aqi)
 
-    # Create a DataFrame for the forecast
+    # --- Data Preparation for UI ---
+    # Create a DataFrame for easy plotting and display
     start_date = datetime.now() + timedelta(days=1)
     forecast_dates = pd.date_range(start=start_date, periods=7)
     forecast_df = pd.DataFrame({'Date': forecast_dates, 'Predicted AQI': future_predictions}).set_index('Date')
 
-    # --- TABS FOR LAYOUT ---
+    # --- Main Page Layout and Tabs ---
+    st.title("💨 Santa Clara County AQI Forecaster")
+    st.markdown("An adaptive machine learning model for daily Air Quality Index (AQI) prediction.")
+
     tab_forecast, tab_performance, tab_legend, tab_about = st.tabs(["📈 Forecast", "📊 Model Performance", "🎨 AQI Legend", "🤖 About the Model"])
 
+    # --- Forecast Tab ---
     with tab_forecast:
-        st.header(f"7-Day Forecast using `{model_choice}`")
+        st.header(f"7-Day Forecast using `{model_choice_name}`")
         st.info(f"Prediction based on the last 7 days of actual AQI: `{[int(v) for v in last_7_days_aqi]}`")
 
         cols = st.columns(7)
@@ -133,28 +176,27 @@ def run_app():
         st.subheader("Forecast Chart")
         st.line_chart(forecast_df['Predicted AQI'])
 
+    # --- Model Performance Tab ---
     with tab_performance:
         st.header("Historical Model Performance")
         st.write("This chart compares the model's past daily predictions against the actual measured AQI for that day.")
-        # Load the prediction log and the main dataset
         try:
-            # Load predictions
+            # Load the log of past predictions and the main dataset of actuals
             predictions_df = pd.read_csv('prediction_log.csv', parse_dates=['Date'])
             
-            # Load actuals from the main (aggregated) data
-            # NOTE: We are re-creating the aggregated daily data from main.py's logic
+            # Aggregate the actuals data by day to ensure a clean time series
             source_df = pd.read_csv('California_airquality.csv', parse_dates=['Date'], low_memory=False)
             actuals_df = source_df[source_df['COUNTY'] == 'Santa Clara'].groupby('Date')['DAILY_AQI_VALUE'].mean().reset_index()
             actuals_df.rename(columns={'DAILY_AQI_VALUE': 'Actual_AQI'}, inplace=True)
 
-            # Merge the two dataframes to align dates
+            # Merge the predictions and actuals on their common date
             comparison_df = pd.merge(actuals_df, predictions_df, on='Date', how='inner')
             comparison_df.set_index('Date', inplace=True)
             
-            # Add a slider to select the time window
+            # UI slider to select how many days of history to show
             days_to_show = st.slider('Select number of days to display:', 1, 30, 14)
             
-            # Display the chart
+            # Display the comparison chart
             st.line_chart(comparison_df.tail(days_to_show))
             
             # Show the raw data in an expander
@@ -166,6 +208,7 @@ def run_app():
         except Exception as e:
             st.error(f"An error occurred while creating the performance chart: {e}")
 
+    # --- AQI Legend Tab ---
     with tab_legend:
         st.header("Understanding the AQI Scale")
         st.markdown("""
@@ -179,9 +222,10 @@ def run_app():
             - **301+ (Hazardous):** <span style='color:maroon; font-weight:bold;'>Maroon</span>
         """, unsafe_allow_html=True)
 
+    # --- About the Model Tab ---
     with tab_about:
         st.header("About the Prediction Model")
-        st.info(f"The `{model_choice}` model was last retrained on: **{last_trained_date.strftime('%Y-%m-%d %H:%M:%S')}**")
+        st.info(f"The `{model_choice_name}` model was last retrained on: **{last_trained_date.strftime('%Y-%m-%d %H:%M:%S')}**")
         
         st.subheader("Model Type")
         st.write("We use a `RandomForestRegressor` model from the `scikit-learn` library, which is an ensemble of many decision trees.")
@@ -206,9 +250,8 @@ def run_app():
             - **`model_fire_aware.joblib`:** This is the primary, more robust model. It was trained on the *entire* 2020 dataset, including the fire season. This gives it a "memory" of extreme events, making it more cautious and resilient. This model is re-trained once a week with the data of the previous week. 
         """)
 
-# --- Run the main function ---
+# --- Main Entry Point ---
+# This ensures the code below only runs when the script is executed directly.
 if __name__ == "__main__":
-    st.title("💨 Santa Clara County AQI Forecaster")
-    st.markdown("An adaptive machine learning model for daily Air Quality Index (AQI) prediction.")
     run_app()
 
