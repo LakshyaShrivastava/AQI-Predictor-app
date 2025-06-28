@@ -43,7 +43,7 @@ def fetch_recent_data(lat, lon, api_key, n_days):
 st.sidebar.header("Model Settings")
 model_choice = st.sidebar.selectbox(
     "Choose a Prediction Model:",
-    ('model_santa_clara_fire_aware.joblib', 'models/model_2020.joblib')
+    ('model_santa_clara_fire_aware.joblib', 'model_2020.joblib')
 )
 
 model_choice = "./models/" + model_choice 
@@ -58,7 +58,7 @@ def get_aqi_display_style(aqi):
         return "background-color: #2b9348; color: white;"
     elif aqi <= 100:
         # Moderate - Yellow
-        return "background-color: #f7d44c; color: black;"
+        return "background-color: #f7d44c; color: yellow;"
     elif aqi <= 150:
         # Unhealthy for Sensitive Groups - Orange
         return "background-color: #f89938; color: black;"
@@ -139,7 +139,7 @@ def run_app():
             The U.S. EPA Air Quality Index (AQI) is a scale from 0 to 500. Higher values mean greater air pollution and health concern.
             
             - **0 - 50 (Good):** <span style='color:green; font-weight:bold;'>Green</span>
-            - **51 - 100 (Moderate):** <span style='color:yellow; color:black; font-weight:bold;'>Yellow</span>
+            - **51 - 100 (Moderate):** <span style='color:yellow; color:yellow; font-weight:bold;'>Yellow</span>
             - **101 - 150 (Unhealthy for Sensitive Groups):** <span style='color:orange; font-weight:bold;'>Orange</span>
             - **151 - 200 (Unhealthy):** <span style='color:red; font-weight:bold;'>Red</span>
             - **201 - 300 (Very Unhealthy):** <span style='color:purple; font-weight:bold;'>Purple</span>
