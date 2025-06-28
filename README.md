@@ -53,8 +53,8 @@ cd AQI-Predictor-app
 It is a best practice to create an isolated Python environment for the project's dependencies.
 
 ```Bash
-	# Create the virtual environment folder named 'venv'
-	python -m venv venv
+# Create the virtual environment folder named 'venv'
+python -m venv venv
 ```
 Now, activate the environment. The command differs based on your operating system:
 
