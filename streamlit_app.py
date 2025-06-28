@@ -110,7 +110,7 @@ def run_app():
     forecast_df = pd.DataFrame({'Date': forecast_dates, 'Predicted AQI': future_predictions}).set_index('Date')
 
     # --- TABS FOR LAYOUT ---
-    tab_forecast, tab_legend, tab_about = st.tabs(["📈 Forecast", "🎨 AQI Legend", "🤖 About the Model"])
+    tab_forecast, tab_performance, tab_legend, tab_about = st.tabs(["📈 Forecast", "📊 Model Performance", "🎨 AQI Legend", "🤖 About the Model"])
 
     with tab_forecast:
         st.header(f"7-Day Forecast using `{model_choice}`")
@@ -132,6 +132,39 @@ def run_app():
         
         st.subheader("Forecast Chart")
         st.line_chart(forecast_df['Predicted AQI'])
+
+    with tab_performance:
+        st.header("Historical Model Performance")
+        st.write("This chart compares the model's past daily predictions against the actual measured AQI for that day.")
+        # Load the prediction log and the main dataset
+        try:
+            # Load predictions
+            predictions_df = pd.read_csv('prediction_log.csv', parse_dates=['Date'])
+            
+            # Load actuals from the main (aggregated) data
+            # NOTE: We are re-creating the aggregated daily data from main.py's logic
+            source_df = pd.read_csv('California_airquality.csv', parse_dates=['Date'], low_memory=False)
+            actuals_df = source_df[source_df['COUNTY'] == 'Santa Clara'].groupby('Date')['DAILY_AQI_VALUE'].mean().reset_index()
+            actuals_df.rename(columns={'DAILY_AQI_VALUE': 'Actual_AQI'}, inplace=True)
+
+            # Merge the two dataframes to align dates
+            comparison_df = pd.merge(actuals_df, predictions_df, on='Date', how='inner')
+            comparison_df.set_index('Date', inplace=True)
+            
+            # Add a slider to select the time window
+            days_to_show = st.slider('Select number of days to display:', 1, 30, 14)
+            
+            # Display the chart
+            st.line_chart(comparison_df.tail(days_to_show))
+            
+            # Show the raw data in an expander
+            with st.expander("View Raw Comparison Data"):
+                st.dataframe(comparison_df.tail(days_to_show))
+
+        except FileNotFoundError:
+            st.warning("Prediction log not found. Run the data collection script for a few days to generate performance data.")
+        except Exception as e:
+            st.error(f"An error occurred while creating the performance chart: {e}")
 
     with tab_legend:
         st.header("Understanding the AQI Scale")
