@@ -7,7 +7,7 @@ This project is an end-to-end machine learning application designed to predict t
 
 The project was built to explore time-series forecasting, handle real-world data issues, and implement a complete, automated ML system from data collection to deployment.
 
-##✨ Features
+## ✨ Features
 
 **7-Day AQI Forecasting:** Predicts the AQI for the next seven days using a recursive forecasting strategy.
 
@@ -24,7 +24,7 @@ The project was built to explore time-series forecasting, handle real-world data
 
 **Interactive Web UI:** A user-friendly dashboard built with Streamlit to visualize the forecast.
 
-##🛠️ How It Works
+## 🛠️ How It Works
 The system follows a continuous loop, making it an adaptive application:
 
 **Daily API Call -> Append to CSV Dataset -> Weekly Model Retraining -> Save New Model File -> Streamlit App Uses Latest Model**
