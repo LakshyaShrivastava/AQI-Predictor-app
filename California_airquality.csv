@@ -30740,3 +30740,4 @@ Date,Source,Site ID,POC,Daily Mean PM2.5 Concentration,UNITS,DAILY_AQI_VALUE,Sit
 2026-02-02,OpenWeatherMap API,,,5.334,ug/m3,22,Aggregated by County,,,88101,PM2.5 - Local Conditions,,,,California,,Santa Clara,37.4323,-121.8996
 2026-02-03,OpenWeatherMap API,,,16.898000000000003,ug/m3,61,Aggregated by County,,,88101,PM2.5 - Local Conditions,,,,California,,Santa Clara,37.4323,-121.8996
 2026-02-04,OpenWeatherMap API,,,38.7772,ug/m3,109,Aggregated by County,,,88101,PM2.5 - Local Conditions,,,,California,,Santa Clara,37.4323,-121.8996
+2026-02-05,OpenWeatherMap API,,,39.620000000000005,ug/m3,111,Aggregated by County,,,88101,PM2.5 - Local Conditions,,,,California,,Santa Clara,37.4323,-121.8996
