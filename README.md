@@ -15,7 +15,6 @@ Air quality affects health and daily decisions, but **short-horizon, location-sp
 
 ## System architecture (as implemented)
 
-The diagram below matches **this repository** (not a hypothetical “full” platform): no separate REST API, no model registry service, and features are **daily lags + rolling mean/std** only.
 
 ```mermaid
 flowchart TB
