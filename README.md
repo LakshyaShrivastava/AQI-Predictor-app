@@ -28,10 +28,11 @@ flowchart TB
     GA_WEEK[Weekly retrain_model.yml]
   end
 
-  subgraph scripts["Python"]
+  subgraph pyLayer["Python"]
     COLLECT[scripts/collect_data.py]
     TRAIN[scripts/train.py]
     HELPERS[scripts/predict_helpers.py]
+    FE[scripts/feature_engineering.py]
   end
 
   subgraph artifacts["Repo artifacts"]
@@ -56,6 +57,8 @@ flowchart TB
 
   COLLECT -.-> HELPERS
   ST -.-> HELPERS
+  TRAIN -.-> FE
+  HELPERS -.-> FE
 
   OWM --> ST
   MODELS --> ST
@@ -66,8 +69,8 @@ flowchart TB
 
 **How to read it**
 
-- **Solid arrows** are data or runtime flow (files, API calls, loads). **Dotted arrows** mean *imports*: `collect_data.py` and `streamlit_app.py` call `predict_helpers.py` for PM2.5→AQI and feature rows; `train.py` builds the same feature *shape* inline for training.  
-- **Training path:** `train.py` reads the county time series from the CSV, builds lag + rolling features, fits `RandomForestRegressor`, writes `model_santa_clara_fire_aware.joblib`.  
+- **Solid arrows** are data or runtime flow (files, API calls, loads). **Dotted arrows** are *Python imports*: `train.py` and `predict_helpers.py` both import [`scripts/feature_engineering.py`](scripts/feature_engineering.py) for lag/rolling definitions; `collect_data.py` and `streamlit_app.py` use `predict_helpers` for API + AQI conversion. **PR CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs **`pytest`** against this same code (see **Manual verification** below).  
+- **Training path:** `train.py` reads the county time series from the CSV, builds features via `feature_engineering`, fits `RandomForestRegressor`, writes `model_santa_clara_fire_aware.joblib`.  
 - **Daily automation:** `collect_data.py` uses OWM + the fire-aware model to append **yesterday’s actual** to the CSV and a **prediction row** to `prediction_log.csv` (when the workflow runs and secrets are set).  
 - **Interactive app:** `streamlit_app.py` loads a chosen `.joblib`, pulls the last seven days from OWM (cached), builds the same feature row, then **recursively** predicts seven future days — no FastAPI layer in between.
 
@@ -76,7 +79,7 @@ flowchart TB
 | Piece | What it does |
 |--------|----------------|
 | **Data** | `California_airquality.csv` — historical daily records; extended daily by `scripts/collect_data.py` when automation runs. |
-| **Features** | Seven **lag** values of daily AQI plus **rolling mean and standard deviation** over the same 7-day window (aligned with `scripts/train.py` and `scripts/predict_helpers.py`). |
+| **Features** | Seven **lag** values of daily AQI plus **rolling mean and standard deviation** over the same 7-day window; defined once in [`scripts/feature_engineering.py`](scripts/feature_engineering.py) for train and inference. |
 | **Inference** | Streamlit loads a `.joblib` model, pulls recent days via **OpenWeatherMap Air Pollution API**, converts **PM2.5 → U.S. EPA AQI**, then **recursively** forecasts seven days ahead. |
 | **Automation** | GitHub Actions: **daily** data collection / prediction logging; **weekly** retraining of the fire-aware model. Artifacts are committed back to the repo when they change. |
 
@@ -109,7 +112,8 @@ The README’s “multi-pollutant + hourly” story would be a **future** extens
 
 ## Evaluation and training (honest scope)
 
-- **`scripts/train.py`** fits on **all** available rows after feature construction and writes the fire-aware artifact. It does **not** currently export hold-out **RMSE / R²** or a baseline comparison to the repository.  
+- **`scripts/train.py`** fits on **all** available rows after feature construction and writes the fire-aware artifact (no built-in holdout in that script).  
+- **`scripts/evaluate.py`** runs a **time-based holdout** on the county series (trains on the prefix, tests on the last *N* days) and writes **`metrics.json`** (gitignored by default) with MAE, RMSE, and R² — useful for talking about **retrain gates** in production (thresholds, manual review).  
 - **`prediction_log.csv`** supports a **simple retrospective view** in the app (logged predictions merged with county actuals) when the log and dataset are present.
 
 **Talking point for interviews:** the next “product-grade” step is **time-based validation** (walk-forward or rolling-origin splits) and storing **metrics + data snapshot IDs** next to each model version.
@@ -119,15 +123,16 @@ The README’s “multi-pollutant + hourly” story would be a **future** extens
 ## MLOps and automation
 
 - **Daily workflow** (`.github/workflows/collect_data.yml`): runs `scripts/collect_data.py` with `OWM_API_KEY` from repository secrets; appends yesterday where appropriate and updates the prediction log.  
-- **Weekly workflow** (`.github/workflows/retrain_model.yml`): runs `scripts/train.py` and commits the updated `model_santa_clara_fire_aware.joblib` when it changes.
+- **Weekly workflow** (`.github/workflows/retrain_model.yml`): runs `scripts/train.py` and commits the updated `model_santa_clara_fire_aware.joblib` when it changes.  
+- **PR / push tests** (`.github/workflows/ci.yml`): installs dependencies and runs **`pytest`** (no API keys, no live network calls in the default suite).
 
-This is **scheduled automation and versioning via git**, not a full enterprise CI/CD pipeline (no PR-gated test suite or multi-environment deploy described here).
+Scheduled jobs are separate from **quality gates on every change** (the CI workflow).
 
 ---
 
 ## Engineering highlights
 
-- Shared **feature contract** between training and inference (`create_time_series_features` in training vs `create_features_for_prediction` for inference).  
+- Single **feature contract** in [`scripts/feature_engineering.py`](scripts/feature_engineering.py) (`create_time_series_features` for training tables, `create_features_for_prediction` for live windows).  
 - **Caching** in Streamlit for model load and API-backed history.  
 - **Secrets:** OpenWeatherMap key via Streamlit secrets locally and GitHub Actions secrets in automation.
 
@@ -152,6 +157,63 @@ This is **scheduled automation and versioning via git**, not a full enterprise C
 
 ---
 
+## Testing and quality
+
+Use a **project-local virtual environment** so your global Python install stays clean. From the repo root:
+
+```bash
+python -m venv .venv
+```
+
+Activate:
+
+- **Windows (PowerShell):** `.\.venv\Scripts\Activate.ps1`  
+- **Windows (cmd):** `.\.venv\Scripts\activate.bat`  
+- **macOS / Linux:** `source .venv/bin/activate`
+
+```bash
+pip install -r requirements.txt
+pytest -q
+```
+
+**What the suite covers (no network in CI):**
+
+- **EPA PM2.5 → AQI** breakpoint values and invalid inputs (`None`, negative, non-numeric) for [`scripts/predict_helpers.py`](scripts/predict_helpers.py).  
+- **OpenWeatherMap client** [`get_historical_pm25`](scripts/predict_helpers.py): happy path and empty / error responses are **mocked** (`unittest.mock`).  
+- **Training vs inference contract:** a row from [`create_time_series_features`](scripts/feature_engineering.py) must match [`create_features_for_prediction`](scripts/feature_engineering.py) on the same seven-day history (synthetic series).
+
+### Manual verification
+
+**1. Local (authoritative for your machine)**
+
+From the repo root, with the venv activated (see commands above):
+
+```bash
+# Count and list tests without executing them
+python -m pytest --collect-only -q
+
+# Run the full suite (quiet)
+python -m pytest -q
+
+# Run with per-test names and stop on first failure (good while debugging)
+python -m pytest -v --maxfail=1
+
+# Run only the contract tests for feature parity
+python -m pytest tests/test_feature_contract.py -v
+```
+
+Expect **all tests passed** and exit code **0**. If anything fails, use `python -m pytest --tb=long tests/<file>.py` for a full traceback.
+
+**2. GitHub Actions (what reviewers see)**
+
+1. Push your branch (or open a PR into `main` / `master`).  
+2. In the repo on GitHub: **Actions** → workflow **“Tests”** (file [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).  
+3. Open the latest run for your commit; every job step should be green, and the log for **“Run tests”** should show `pytest` exiting with **0**.
+
+If the workflow does not appear, confirm the default branch name matches the workflow triggers (`main` or `master`) or adjust the `on:` branches in `ci.yml` to match yours.
+
+---
+
 ## Running locally
 
 **Prerequisites:** Python **3.9+**, Git.
@@ -159,16 +221,19 @@ This is **scheduled automation and versioning via git**, not a full enterprise C
 ```bash
 git clone https://github.com/LakshyaShrivastava/AQI-Predictor-app.git
 cd AQI-Predictor-app
-python -m venv venv
+python -m venv .venv
 ```
 
-Activate the venv:
-
-- **Windows (PowerShell):** `.\venv\Scripts\activate`  
-- **macOS / Linux:** `source venv/bin/activate`
+Activate the venv (same commands as in **Testing and quality** above), then:
 
 ```bash
 pip install -r requirements.txt
+```
+
+**Optional — holdout metrics (writes `metrics.json`, gitignored):**
+
+```bash
+python scripts/evaluate.py --holdout-days 30
 ```
 
 **OpenWeatherMap API key**

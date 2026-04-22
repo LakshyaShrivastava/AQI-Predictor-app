@@ -158,3 +158,6 @@ cython_debug/
 
 *.pyc
 
+# Local model evaluation output
+metrics.json
+

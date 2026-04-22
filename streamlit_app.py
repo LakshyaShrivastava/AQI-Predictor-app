@@ -11,8 +11,15 @@ the results in an interactive dashboard with multiple tabs.
 # --- Imports ---
 # Standard library imports
 import os
+import sys
 from collections import deque
 from datetime import datetime, timedelta
+from pathlib import Path
+
+# Ensure `scripts/` is on path so `predict_helpers` resolves like CLI scripts (collect_data, train).
+_SCRIPTS_DIR = Path(__file__).resolve().parent / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
 
 # Third-party imports
 import joblib
@@ -20,7 +27,7 @@ import pandas as pd
 import streamlit as st
 
 # Custom helper function imports
-from scripts.predict_helpers import get_historical_pm25, pm25_to_aqi, create_features_for_prediction
+from predict_helpers import create_features_for_prediction, get_historical_pm25, pm25_to_aqi
 from scripts.ui_helpers import get_aqi_display_style
 
 # --- Page Configuration ---
@@ -261,7 +268,7 @@ def run_app():
         st.subheader("The Two Models")
         st.markdown("""
             - **`model_2020.joblib`:** This was our initial model, trained only on "normal" air quality data (Jan-July 2020). It is naive and does not know how to handle extreme fire events.
-            - **`model_fire_aware.joblib`:** This is the primary, more robust model. It was trained on the *entire* 2020 dataset, including the fire season. This gives it a "memory" of extreme events, making it more cautious and resilient. This model is re-trained once a week with the data of the previous week. 
+            - **`model_santa_clara_fire_aware.joblib`:** This is the primary, more robust model. It was trained on the *entire* 2020 dataset, including the fire season. This gives it a "memory" of extreme events, making it more cautious and resilient. This model is re-trained on a weekly schedule as new data is appended. 
         """)
 
 # --- Main Entry Point ---

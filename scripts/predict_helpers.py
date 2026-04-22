@@ -13,7 +13,6 @@ This module provides the core, reusable functionalities required by the other sc
 # Third-party libraries
 import requests
 import numpy as np
-import pandas as pd
 
 # Standard library imports
 from datetime import timedelta
@@ -32,6 +31,15 @@ def pm25_to_aqi(pm25):
     Returns:
         int | None: The calculated US EPA AQI value, or None if the input is invalid.
     """
+    if pm25 is None:
+        return None
+    try:
+        value = float(pm25)
+    except (TypeError, ValueError):
+        return None
+    if value < 0:
+        return None
+    pm25 = value
     if pm25 <= 12.0:
         return _calculate_aqi(pm25, 50, 0, 12.0, 0.0)
     elif pm25 <= 35.4:
@@ -107,36 +115,9 @@ def get_historical_pm25(lat, lon, date_to_fetch, api_key):
         print(f"Error fetching data for {date_to_fetch.strftime('%Y-%m-%d')}: {e}")
         return None
 
-# --- Helper Function for Feature Engineering ---
 
-def create_features_for_prediction(data_window, target_column, n_lags):
-    """
-    Creates a single-row DataFrame of features for the ML model from a window of recent data.
-
-    This function must generate the exact same features that the model was trained on.
-
-    Args:
-        data_window (Iterable): A list, deque, or array of the last N days of AQI values.
-        target_column (str): The name of the target variable (e.g., 'DAILY_AQI_VALUE').
-        n_lags (int): The number of lag features to create (should match the window size).
-
-    Returns:
-        pd.DataFrame: A single-row DataFrame ready to be fed into the model's .predict() method.
-    """
-    data = np.array(data_window)
-    features = {}
-    
-    # Create lag features (e.g., AQI_lag_1, AQI_lag_2, ...)
-    for i in range(n_lags):
-        # Access the array from the end (most recent) to the start (oldest).
-        features[f'{target_column}_lag_{i+1}'] = data[n_lags-1-i]
-
-    # Create rolling window features that summarize the period.
-    features[f'{target_column}_rolling_mean_7'] = np.mean(data)
-    features[f'{target_column}_rolling_std_7'] = np.std(data)
-    
-    # Define the exact column order to match the model's training.
-    feature_names = [f'{target_column}_lag_{i+1}' for i in range(n_lags)] + \
-                    [f'{target_column}_rolling_mean_7', f'{target_column}_rolling_std_7']
-    
-    return pd.DataFrame([features], columns=feature_names)
+# Re-export for callers that import from predict_helpers (e.g. collect_data, streamlit).
+try:
+    from feature_engineering import create_features_for_prediction  # noqa: E402
+except ImportError:  # ``python -m pytest`` imports ``scripts.*`` from repo root
+    from scripts.feature_engineering import create_features_for_prediction  # noqa: E402

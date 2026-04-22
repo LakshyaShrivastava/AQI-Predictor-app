@@ -20,6 +20,8 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 import joblib
 
+from feature_engineering import create_time_series_features
+
 # --- Configuration ---
 CONFIG = {
     "source_csv_path": "California_airquality.csv",
@@ -60,34 +62,6 @@ print(f"✅ Data loaded and prepared for '{CONFIG['county_to_filter']}' County."
 print(f"Data shape after aggregation: {df_aqi.shape}")
 
 # --- 2. Feature Engineering ---
-
-def create_time_series_features(df, target_col, n_lags=7):
-    """
-    Creates time-series features (lags and rolling stats) from the input data.
-
-    Args:
-        df (pd.DataFrame): The input DataFrame with a datetime index and a target column.
-        target_col (str): The name of the column to create features from.
-        n_lags (int): The number of past time steps to use for lag features.
-
-    Returns:
-        pd.DataFrame: A new DataFrame with the engineered features and target variable.
-    """
-
-    df_featured = df.copy()
-    # Create lag features (the value from N days ago).
-    for i in range(1, n_lags + 1):
-        df_featured[f'{target_col}_lag_{i}'] = df_featured[target_col].shift(i)
-
-    # Create rolling window features (summary stats over a recent period).
-    # .shift(1) ensures that the rolling stats for a given day do not include that day's own value.
-    rolling_window = df_featured[target_col].shift(1).rolling(window=n_lags)
-    df_featured[f'{target_col}_rolling_mean_{n_lags}'] = rolling_window.mean()
-    df_featured[f'{target_col}_rolling_std_{n_lags}'] = rolling_window.std()
-
-    # Drop rows with NaN values that were created by the shift/rolling operations.
-    df_featured.dropna(inplace=True)
-    return df_featured
 
 print("\nEngineering time-series features...")
 df_model_data = create_time_series_features(df_aqi, CONFIG['target_column'], CONFIG['n_lags'])

@@ -54,3 +54,6 @@ tzdata==2025.2
 urllib3==2.2.3
 watchdog==4.0.2
 zipp==3.20.2
+
+# Tests — install into a project venv only (see README); not required for Streamlit runtime.
+pytest==8.3.4
